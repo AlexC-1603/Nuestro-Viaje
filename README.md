@@ -58,12 +58,21 @@ service cloud.firestore {
         && request.resource.data.memberUids.size() == 1
         && request.resource.data.memberUids[0] == request.auth.uid;
 
-      // Unirse con un código existente: solo si actualmente tiene 1
-      // miembro y pasa a tener 2, y quien escribe queda incluido.
+      // Actualizar el documento de la pareja: dos casos permitidos.
+      // 1) Unirse con un código existente: solo si actualmente tiene 1
+      //    miembro y pasa a tener 2, y quien escribe queda incluido.
+      // 2) Cualquiera de los dos miembros YA enlazados puede actualizar
+      //    (ej. para guardar/corregir su nombre en memberNames) — nunca
+      //    un tercero, porque exige estar en memberUids del documento
+      //    ANTES de la escritura.
       allow update: if request.auth != null
-        && resource.data.memberUids.size() == 1
-        && request.resource.data.memberUids.size() == 2
-        && request.auth.uid in request.resource.data.memberUids;
+        && (
+          (resource.data.memberUids.size() == 1
+            && request.resource.data.memberUids.size() == 2
+            && request.auth.uid in request.resource.data.memberUids)
+          ||
+          request.auth.uid in resource.data.memberUids
+        );
 
       allow delete: if false;
 
