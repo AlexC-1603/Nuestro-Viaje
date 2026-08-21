@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>Nuestro Mapa</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='16' fill='%2312222B'/%3E%3Ccircle cx='16' cy='16' r='11' fill='none' stroke='%236E1F2B' stroke-width='1.4'/%3E%3Cpath d='M16 7 L19 16 L16 25 L13 16 Z' fill='%236E1F2B'/%3E%3Ccircle cx='16' cy='16' r='1.6' fill='%23FFFFFF'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,500&family=Work+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- ===================== PANTALLA: CARGANDO ===================== -->
+<div id="view-loading" class="view view-loading">
+  <div class="compass-spin" aria-hidden="true">🧭</div>
+</div>
+
+<!-- ===================== PANTALLA: LOGIN ===================== -->
+<div id="view-login" class="view view-login hidden">
+  <div class="login-card">
+    <p class="eyebrow">Bitácora privada</p>
+    <h1 class="login-title">Nuestro Mapa</h1>
+    <p class="login-sub">Un cuaderno de viaje para dos. Inicia sesión para entrar.</p>
+
+    <form id="login-form" class="login-form">
+      <label class="field">
+        <span>Correo</span>
+        <input type="email" id="login-email" required autocomplete="username" placeholder="tú@correo.com">
+      </label>
+      <label class="field">
+        <span>Contraseña</span>
+        <input type="password" id="login-password" required autocomplete="current-password" placeholder="••••••••">
+      </label>
+      <p id="login-error" class="form-error hidden"></p>
+      <button type="submit" class="btn btn-primary btn-block" id="login-submit">Entrar</button>
+    </form>
+
+    <button type="button" id="show-register" class="link-btn">¿Primera vez? Crear una cuenta</button>
+  </div>
+
+  <!-- Registro (oculto por defecto, pensado solo para las 2 cuentas de la pareja) -->
+  <div id="register-card" class="login-card hidden">
+    <p class="eyebrow">Solo la primera vez</p>
+    <h1 class="login-title">Crear cuenta</h1>
+    <p class="login-sub">Si eres el primero en entrar, genera un código nuevo. Si tu pareja ya lo generó, únete con ese código.</p>
+
+    <div class="mode-toggle" role="tablist">
+      <button type="button" class="mode-btn active" id="mode-create" data-mode="create">Crear código nuevo</button>
+      <button type="button" class="mode-btn" id="mode-join" data-mode="join">Unirme con un código</button>
+    </div>
+
+    <form id="register-form" class="login-form">
+      <label class="field">
+        <span>Tu nombre</span>
+        <input type="text" id="register-name" required placeholder="Ej. Alejandro">
+      </label>
+      <label class="field hidden" id="join-code-field">
+        <span>Código de tu pareja</span>
+        <input type="text" id="register-code" placeholder="Ej. 7K2P9X" maxlength="8" autocapitalize="characters">
+      </label>
+      <label class="field">
+        <span>Correo</span>
+        <input type="email" id="register-email" required placeholder="tú@correo.com">
+      </label>
+      <label class="field">
+        <span>Contraseña</span>
+        <input type="password" id="register-password" required minlength="6" placeholder="Mínimo 6 caracteres">
+      </label>
+      <p id="register-error" class="form-error hidden"></p>
+      <button type="submit" class="btn btn-primary btn-block" id="register-submit">Crear cuenta y entrar</button>
+    </form>
+    <button type="button" id="show-login" class="link-btn">Ya tengo cuenta</button>
+  </div>
+</div>
+
+<!-- ===================== MODAL: CÓDIGO DE PAREJA GENERADO ===================== -->
+<div id="modal-invite-code" class="modal-overlay hidden">
+  <div class="modal-card">
+    <h3>Tu código de pareja</h3>
+    <p class="detail-notes">Comparte este código con tu pareja (por WhatsApp, por ejemplo) para que se una a la app. Guárdalo, no podrás volver a verlo aquí.</p>
+    <div class="invite-code-box">
+      <span id="invite-code-text">------</span>
+      <button type="button" id="copy-code-btn" class="btn btn-secondary">Copiar</button>
+    </div>
+    <button type="button" id="invite-code-continue" class="btn btn-primary btn-block">Entendido, continuar</button>
+  </div>
+</div>
+
+<!-- ===================== PANTALLA: APP ===================== -->
+<div id="view-app" class="view view-app hidden">
+
+  <!-- HERO: portada de pasaporte + contador -->
+  <header class="hero">
+    <div class="hero-top">
+      <span class="eyebrow">Bitácora de <span id="hero-names">nosotros</span></span>
+      <button id="logout-btn" class="icon-btn" title="Cerrar sesión" aria-label="Cerrar sesión">⎋</button>
+    </div>
+
+    <h1 class="hero-title">Nuestro Mapa</h1>
+
+    <p id="waiting-partner-banner" class="waiting-partner-banner hidden"></p>
+
+    <div id="counter-wrap" class="counter-wrap">
+      <p class="counter-label">Llevamos juntos</p>
+      <div class="board" id="counter-board" aria-live="polite">
+        <div class="board-unit"><span class="board-num" id="c-years">00</span><span class="board-tag">años</span></div>
+        <div class="board-unit"><span class="board-num" id="c-months">00</span><span class="board-tag">meses</span></div>
+        <div class="board-unit"><span class="board-num" id="c-days">00</span><span class="board-tag">días</span></div>
+        <div class="board-unit"><span class="board-num" id="c-hours">00</span><span class="board-tag">h</span></div>
+        <div class="board-unit"><span class="board-num" id="c-mins">00</span><span class="board-tag">min</span></div>
+        <div class="board-unit"><span class="board-num" id="c-secs">00</span><span class="board-tag">seg</span></div>
+      </div>
+      <button id="edit-start-date" class="link-btn subtle">Editar fecha de inicio</button>
+    </div>
+
+    <div id="start-date-setup" class="start-date-setup hidden">
+      <p>¿Cuándo empezó todo? Guarda la fecha para arrancar el contador.</p>
+      <form id="start-date-form" class="inline-form">
+        <input type="date" id="start-date-input" required>
+        <button type="submit" class="btn btn-primary">Guardar fecha</button>
+      </form>
+    </div>
+  </header>
+
+  <!-- PÁGINAS: lista de lugares -->
+  <main class="pages">
+    <div class="pages-head">
+      <div>
+        <h2 class="pages-title">Lugares</h2>
+        <p class="pages-sub" id="places-summary">Cargando lugares…</p>
+      </div>
+      <div class="pages-actions">
+        <button id="download-all-btn" type="button" class="btn btn-secondary">⬇ Descargar fotos</button>
+        <button id="add-place-btn" class="btn btn-primary">+ Añadir lugar</button>
+      </div>
+    </div>
+
+    <div class="filters-row">
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-filter="all" role="tab">Todos</button>
+        <button class="tab" data-filter="pending" role="tab">Por visitar</button>
+        <button class="tab" data-filter="visited" role="tab">Visitados</button>
+      </div>
+      <div class="filter-controls">
+        <select id="category-filter" class="select-control" aria-label="Filtrar por categoría">
+          <option value="all">Todas las categorías</option>
+          <option value="playa">🏖️ Playa</option>
+          <option value="ciudad">🏙️ Ciudad</option>
+          <option value="comida">🍽️ Comida</option>
+          <option value="aventura">🥾 Aventura</option>
+          <option value="otro">📍 Otro</option>
+        </select>
+        <select id="sort-control" class="select-control" aria-label="Ordenar lugares">
+          <option value="recent">Más recientes</option>
+          <option value="category">Por categoría</option>
+          <option value="name">Nombre A-Z</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="places-empty" class="empty-state hidden">
+      <p>Todavía no hay lugares en la lista.</p>
+      <p class="empty-sub">Añade el primero: puede ser esa cafetería que vieron en un video, o el viaje que llevan meses postergando.</p>
+    </div>
+
+    <div id="places-grid" class="places-grid"></div>
+  </main>
+
+  <footer class="app-footer">
+    <p>Hecho a mano para nosotros dos.</p>
+  </footer>
+</div>
+
+<!-- ===================== MODAL: AÑADIR / EDITAR LUGAR ===================== -->
+<div id="modal-place" class="modal-overlay hidden">
+  <div class="modal-card">
+    <button class="modal-close" id="modal-place-close" aria-label="Cerrar">×</button>
+    <h3 id="modal-place-title">Añadir un lugar</h3>
+    <form id="place-form" class="login-form">
+      <input type="hidden" id="place-id">
+      <label class="field">
+        <span>Nombre del lugar</span>
+        <input type="text" id="place-name" required placeholder="Ej. Huacachina">
+      </label>
+      <label class="field">
+        <span>Notas (opcional)</span>
+        <textarea id="place-notes" rows="3" placeholder="¿Por qué quieren ir? ¿Qué no se puede perder?"></textarea>
+      </label>
+      <label class="field">
+        <span>Categoría</span>
+        <select id="place-category">
+          <option value="playa">🏖️ Playa</option>
+          <option value="ciudad">🏙️ Ciudad</option>
+          <option value="comida">🍽️ Comida</option>
+          <option value="aventura">🥾 Aventura</option>
+          <option value="otro" selected>📍 Otro</option>
+        </select>
+      </label>
+      <p id="place-form-error" class="form-error hidden"></p>
+      <button type="submit" class="btn btn-primary btn-block" id="place-form-submit">Guardar</button>
+    </form>
+  </div>
+</div>
+
+<!-- ===================== MODAL: DETALLE DE LUGAR / FOTOS ===================== -->
+<div id="modal-detail" class="modal-overlay hidden">
+  <div class="modal-card modal-card-wide">
+    <button class="modal-close" id="modal-detail-close" aria-label="Cerrar">×</button>
+    <div class="detail-head">
+      <div>
+        <p class="eyebrow" id="detail-status-label">Por visitar</p>
+        <h3 id="detail-name">Lugar</h3>
+        <span class="category-badge" id="detail-category-badge"></span>
+        <p id="detail-notes" class="detail-notes"></p>
+      </div>
+    </div>
+
+    <button type="button" id="edit-place-btn" class="link-btn">✎ Editar este lugar</button>
+
+    <div id="detail-mark-visited" class="mark-visited-box">
+      <p>¿Ya lo visitaron? Marca la fecha y suban sus fotos.</p>
+      <form id="visited-form" class="inline-form">
+        <input type="date" id="visited-date-input" required>
+        <button type="submit" class="btn btn-primary">Marcar como visitado</button>
+      </form>
+    </div>
+
+    <div id="detail-visited-info" class="visited-info hidden">
+      <span class="stamp" id="visited-stamp">Visitado</span>
+      <span id="visited-date-label"></span>
+    </div>
+
+    <div id="photo-upload-box" class="photo-upload-box hidden">
+      <label class="btn btn-secondary" for="photo-input">
+        <span id="upload-label-text">+ Subir fotos</span>
+      </label>
+      <input type="file" id="photo-input" accept="image/*" multiple class="visually-hidden">
+      <div id="upload-progress" class="upload-progress hidden">
+        <div class="upload-progress-bar" id="upload-progress-bar"></div>
+      </div>
+    </div>
+
+    <div id="detail-photos" class="photo-grid"></div>
+
+    <button type="button" id="download-place-btn" class="btn btn-secondary btn-block hidden">⬇ Descargar fotos de este lugar</button>
+
+    <button type="button" id="delete-place-btn" class="link-btn danger">Eliminar este lugar</button>
+  </div>
+</div>
+
+<!-- ===================== LIGHTBOX DE FOTO ===================== -->
+<div id="lightbox" class="lightbox hidden">
+  <button class="lightbox-close" id="lightbox-close" aria-label="Cerrar">×</button>
+  <img id="lightbox-img" src="" alt="Foto ampliada">
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<!-- Firebase SDK (compat, sin necesidad de build tools) -->
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore-compat.js"></script>
+
+<!-- JSZip: usado solo para empaquetar fotos al descargarlas -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+<script src="js/firebase-config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/counter.js"></script>
+<script src="js/places.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
