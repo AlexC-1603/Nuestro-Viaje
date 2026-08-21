@@ -204,6 +204,10 @@ document.getElementById('copy-code-btn').addEventListener('click', async () => {
 
 // --- Logout ---
 document.getElementById('logout-btn').addEventListener('click', () => {
+  if (unsubscribeCoupleHeader) {
+    unsubscribeCoupleHeader();
+    unsubscribeCoupleHeader = null;
+  }
   auth.signOut();
 });
 
@@ -250,31 +254,50 @@ async function enterAppWithUser(user) {
 // Muestra en el encabezado los nombres de los DOS miembros de la pareja
 // (no solo el de quien inició sesión), y avisa si el otro aún no se unió
 // con el código.
+//
+// Es un listener en tiempo real (onSnapshot), no una lectura única: así,
+// si Alejandro ya tiene la app abierta esperando y Fabiana se une desde
+// su celular, el encabezado de Alejandro pasa solo de "Alejandro" a
+// "Alejandro y Fabiana" sin que nadie tenga que recargar la página.
+let unsubscribeCoupleHeader = null;
+
 async function updateCoupleHeader(user) {
   const heroNamesEl = document.getElementById('hero-names');
   const waitingBanner = document.getElementById('waiting-partner-banner');
-  try {
-    const coupleDoc = await coupleRef().get();
-    const memberUids = (coupleDoc.exists && coupleDoc.data().memberUids) || [user.uid];
 
-    const names = await Promise.all(memberUids.map(async (uid) => {
-      if (uid === user.uid) return user.displayName || 'Tú';
-      const doc = await db.collection('users').doc(uid).get();
-      return (doc.exists && doc.data().displayName) || 'tu pareja';
-    }));
-
-    heroNamesEl.textContent = names.join(' y ');
-
-    if (memberUids.length < 2) {
-      waitingBanner.textContent = `Todavía falta que tu pareja se una con el código ${currentCoupleCode}. Compárteselo para que vean lo mismo los dos.`;
-      waitingBanner.classList.remove('hidden');
-    } else {
-      waitingBanner.classList.add('hidden');
-    }
-  } catch (err) {
-    console.error('No se pudo cargar el encabezado de pareja', err);
-    heroNamesEl.textContent = user.displayName || 'nosotros';
+  // Si ya había un listener de una sesión anterior, lo cerramos antes de
+  // abrir uno nuevo (evita listeners duplicados o de un código anterior).
+  if (unsubscribeCoupleHeader) {
+    unsubscribeCoupleHeader();
+    unsubscribeCoupleHeader = null;
   }
+
+  unsubscribeCoupleHeader = coupleRef().onSnapshot(async (coupleDoc) => {
+    try {
+      const memberUids = (coupleDoc.exists && coupleDoc.data().memberUids) || [user.uid];
+
+      const names = await Promise.all(memberUids.map(async (uid) => {
+        if (uid === user.uid) return user.displayName || 'Tú';
+        const doc = await db.collection('users').doc(uid).get();
+        return (doc.exists && doc.data().displayName) || 'tu pareja';
+      }));
+
+      heroNamesEl.textContent = names.join(' y ');
+
+      if (memberUids.length < 2) {
+        waitingBanner.textContent = `Todavía falta que tu pareja se una con el código ${currentCoupleCode}. Compárteselo para que vean lo mismo los dos.`;
+        waitingBanner.classList.remove('hidden');
+      } else {
+        waitingBanner.classList.add('hidden');
+      }
+    } catch (err) {
+      console.error('No se pudo procesar el encabezado de pareja', err);
+      heroNamesEl.textContent = user.displayName || 'nosotros';
+    }
+  }, (err) => {
+    console.error('No se pudo escuchar el encabezado de pareja', err);
+    heroNamesEl.textContent = user.displayName || 'nosotros';
+  });
 }
 
 auth.onAuthStateChanged(async (user) => {
