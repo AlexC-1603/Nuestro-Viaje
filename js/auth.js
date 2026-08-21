@@ -129,12 +129,18 @@ document.getElementById('register-form').addEventListener('submit', async (e) =>
       await db.collection('couples').doc(coupleCode).set({
         ownerUid: cred.user.uid,
         memberUids: [cred.user.uid],
+        // Guardamos el nombre aquí mismo (no solo en users/{uid}) porque
+        // las Reglas de "users" solo dejan a cada quien leer su PROPIO
+        // documento — la pareja nunca podría leer el nombre del otro ahí.
+        // El documento de couples sí lo pueden leer ambos.
+        memberNames: { [cred.user.uid]: name },
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
       });
     } else {
       coupleCode = codeInput;
       await db.collection('couples').doc(coupleCode).update({
         memberUids: firebase.firestore.FieldValue.arrayUnion(cred.user.uid),
+        [`memberNames.${cred.user.uid}`]: name,
       });
     }
 
@@ -248,12 +254,33 @@ async function enterAppWithUser(user) {
   viewLogin.classList.add('hidden');
   viewApp.classList.remove('hidden');
   onUserReady(user);
+
+  // Auto-reparo: si esta cuenta se registró antes de que existiera el
+  // campo "memberNames" en couples/{code} (o si por lo que sea no quedó
+  // guardado su nombre ahí), lo completamos ahora. Así, cuentas ya creadas
+  // se "sanan" solas la próxima vez que entran, sin tocar Firestore a mano.
+  try {
+    const coupleDoc = await coupleRef().get();
+    const savedName = coupleDoc.exists && coupleDoc.data().memberNames && coupleDoc.data().memberNames[user.uid];
+    if (savedName !== (user.displayName || 'Tú')) {
+      await coupleRef().update({ [`memberNames.${user.uid}`]: user.displayName || 'Tú' });
+    }
+  } catch (err) {
+    console.error('No se pudo sincronizar el nombre en couples', err);
+  }
+
   await updateCoupleHeader(user);
 }
 
 // Muestra en el encabezado los nombres de los DOS miembros de la pareja
 // (no solo el de quien inició sesión), y avisa si el otro aún no se unió
 // con el código.
+//
+// Los nombres se leen del propio documento couples/{code} (campo
+// memberNames), NO del documento users/{uid} del otro: las Reglas de
+// "users" solo dejan a cada quien leer su propio documento, así que
+// intentar leer el de la pareja ahí siempre fallaba con permission-denied
+// (en silencio, sin error visible) y por eso nunca se actualizaba.
 //
 // Es un listener en tiempo real (onSnapshot), no una lectura única: así,
 // si Alejandro ya tiene la app abierta esperando y Fabiana se une desde
@@ -272,15 +299,15 @@ async function updateCoupleHeader(user) {
     unsubscribeCoupleHeader = null;
   }
 
-  unsubscribeCoupleHeader = coupleRef().onSnapshot(async (coupleDoc) => {
+  unsubscribeCoupleHeader = coupleRef().onSnapshot((coupleDoc) => {
     try {
       const memberUids = (coupleDoc.exists && coupleDoc.data().memberUids) || [user.uid];
+      const memberNames = (coupleDoc.exists && coupleDoc.data().memberNames) || {};
 
-      const names = await Promise.all(memberUids.map(async (uid) => {
+      const names = memberUids.map((uid) => {
         if (uid === user.uid) return user.displayName || 'Tú';
-        const doc = await db.collection('users').doc(uid).get();
-        return (doc.exists && doc.data().displayName) || 'tu pareja';
-      }));
+        return memberNames[uid] || 'tu pareja';
+      });
 
       heroNamesEl.textContent = names.join(' y ');
 
