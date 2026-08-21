@@ -102,31 +102,26 @@ document.getElementById('register-form').addEventListener('submit', async (e) =>
 
   let cred = null;
   try {
-    // Si se va a unir con un código, validar que exista y tenga espacio
-    // ANTES de crear la cuenta (mejor experiencia si el código está mal).
+    cred = await auth.createUserWithEmailAndPassword(email, password);
+    await cred.user.updateProfile({ displayName: name });
+
+    // Validar el código de pareja RECIÉN AHORA, con la cuenta ya creada.
+    // Tiene que ser así y no antes: las Reglas de Firestore exigen sesión
+    // iniciada (request.auth != null) para poder leer "couples/{code}", y
+    // antes de crear la cuenta no la hay. Si esto fallaba antes de crear
+    // la cuenta, Firestore devolvía "permission-denied" (no porque el
+    // código estuviera mal, sino porque nadie había iniciado sesión
+    // todavía), y eso se mostraba engañosamente como "código no disponible".
     if (registerMode === 'join') {
       const coupleDoc = await db.collection('couples').doc(codeInput).get();
       if (!coupleDoc.exists) {
-        errorEl.textContent = 'Ese código no existe. Revísalo con tu pareja.';
-        errorEl.classList.remove('hidden');
-        submitBtn.disabled = false;
-        submitBtn.textContent = 'Crear cuenta y entrar';
-        registrationInProgress = false;
-        return;
+        throw Object.assign(new Error('Ese código no existe. Revísalo con tu pareja.'), { code: 'app/code-not-found' });
       }
       const members = coupleDoc.data().memberUids || [];
       if (members.length >= 2) {
-        errorEl.textContent = 'Ese código ya está siendo usado por dos personas.';
-        errorEl.classList.remove('hidden');
-        submitBtn.disabled = false;
-        submitBtn.textContent = 'Crear cuenta y entrar';
-        registrationInProgress = false;
-        return;
+        throw Object.assign(new Error('Ese código ya está siendo usado por dos personas.'), { code: 'app/code-full' });
       }
     }
-
-    cred = await auth.createUserWithEmailAndPassword(email, password);
-    await cred.user.updateProfile({ displayName: name });
 
     let coupleCode;
     if (registerMode === 'create') {
@@ -171,10 +166,14 @@ document.getElementById('register-form').addEventListener('submit', async (e) =>
       }
     }
 
-    const friendly = traducirErrorAuth(err);
-    errorEl.textContent = friendly
-      ? friendly
-      : `No se pudo completar el registro. Revisa que Firestore Database exista y que las Reglas estén publicadas (ver README). Detalle: ${err.message || err.code || 'error desconocido'}`;
+    if (err.code === 'app/code-not-found' || err.code === 'app/code-full') {
+      errorEl.textContent = err.message;
+    } else {
+      const friendly = traducirErrorAuth(err);
+      errorEl.textContent = friendly
+        ? friendly
+        : `No se pudo completar el registro. Revisa que Firestore Database exista y que las Reglas estén publicadas (ver README). Detalle: ${err.message || err.code || 'error desconocido'}`;
+    }
     errorEl.classList.remove('hidden');
   } finally {
     submitBtn.disabled = false;
